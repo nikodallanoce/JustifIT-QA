@@ -10,7 +10,7 @@ class Qwen3Reranker:
             instruction: str = "Given an Italian legal question, retrieve relevant statutory texts that answer the query.",
             max_length: int = 4096,
             batch_size: int = 8,
-            cache_dir: str = "/disk1/n.dallanoce/models",
+            cache_dir: str = ".",
             device: str = "cuda" if torch.cuda.is_available() else "cpu",
     ):
         self.device = device  # "cuda" if torch.cuda.is_available() else "cpu"

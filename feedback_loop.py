@@ -595,7 +595,7 @@ if __name__ == '__main__':
     )
 
     fgp = random.randint(0, int(2 ** 31))
-    reranker = Qwen3Reranker(model_name=args.reranker_model_repo)
+    reranker = Qwen3Reranker(model_name=args.reranker_model_repo, cache_dir=args.cache_dir)
     formed_prompt = italian_compliant_prompt
 
     conversation_ds = questions_ds.map(
