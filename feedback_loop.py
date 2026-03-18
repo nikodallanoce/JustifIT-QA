@@ -3,7 +3,6 @@ import itertools
 import json
 import random
 import re
-import time
 from functools import partial
 
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -11,7 +10,7 @@ from transformers import TextGenerationPipeline
 
 from Qwen3Reranker import Qwen3Reranker
 from build_vector_db import LegalFAISSRetriever, BuildConfig
-from ext_dataset_utils import get_cleaned_question_dataset
+from ext_dataset_utils import extract_evaluation
 import datasets
 import pandas as pd
 import torch
@@ -253,29 +252,6 @@ D (documenti rilevanti):
 '''
 
 
-def extract_evaluation(text: str) -> tuple[str, float]:
-    """
-    Extracts the value associated with the "evaluation" key from a possibly malformed JSON-like string.
-    Returns the value as a string, or None if not found.
-    """
-    # Regex explanation:
-    # - (?i) makes it case-insensitive (matches "Evaluation", "evaluation", etc.)
-    # - looks for "evaluation" followed by ":" and optional spaces
-    # - captures the value between quotes (either single or double)
-    result_mapping = {"compliant": 1.0, "semi-compliant": 0.5, "error": 0.0, "non-compliant": 0.0,
-                      "conforme": 1.0, "parzialmente conforme": 0.5, "non conforme": 0.0}
-    pattern = r'(?i)"evaluation"\s*:\s*["\']([^"\']+)["\']'
-
-    match = re.search(pattern, text)
-    result = "ERROR"
-    if match:
-        result = match.group(1).strip().lower()
-    num_out = result_mapping.get(result, 0)
-    if result == "ERROR" or result not in result_mapping:
-        print("ERROR IN EXTRACTING EVALUATION!")
-    return (result, float(num_out))
-
-
 def clean_gen_texts(gen_txt_lst: list[str]) -> list[str]:
     gen_text = [re.sub(r'[\u202f\u00a0\u2007]', ' ', txt.strip()) for txt in gen_txt_lst]
     # gen_text = [txt.replace("`", "").replace("markdown", "").strip() for txt in gen_text]
@@ -495,6 +471,18 @@ def parse_args():
         help="Top-k documents kept after reranking."
     )
     parser.add_argument(
+        "--reranker_bsz",
+        type=int,
+        default=4,
+        help="Reranker batch size."
+    )
+    parser.add_argument(
+        "--retriever_bsz",
+        type=int,
+        default=16,
+        help="Retriever batch size."
+    )
+    parser.add_argument(
         "--feedback_loop_max_iters",
         type=int,
         default=3,
@@ -513,10 +501,8 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    corpus_ds: datasets.Dataset = datasets.load_dataset(
-        "jurifindit/JuriFindIT", "corpus", split="corpus"
-    )
-    question_df = pd.read_parquet("datasets/justifitqa.pkl")
+    corpus_ds: datasets.Dataset = datasets.load_dataset("jurifindit/JuriFindIT", "corpus", split="corpus")
+    question_df = pd.read_pickle("datasets/justifitqa.pkl")
     questions_ds = datasets.Dataset.from_pandas(question_df)
 
     model = transformers.AutoModelForCausalLM.from_pretrained(
@@ -540,7 +526,7 @@ if __name__ == '__main__':
     )
 
     embedder_model_kwargs = {"device": "cuda", "trust_remote_code": True}
-    query_encode_kwargs = {"prompt": "Query: ", "batch_size": 16}
+    query_encode_kwargs = {"prompt": "Query: ", "batch_size": args.retriever_bsz}
     embedding_model = HuggingFaceEmbeddings(
         model_name=args.embedder_model_name,
         cache_folder=args.cache_dir,
@@ -595,7 +581,7 @@ if __name__ == '__main__':
     )
 
     fgp = random.randint(0, int(2 ** 31))
-    reranker = Qwen3Reranker(model_name=args.reranker_model_repo, cache_dir=args.cache_dir)
+    reranker = Qwen3Reranker(model_name=args.reranker_model_repo, cache_dir=args.cache_dir, batch_size=args.reranker_bsz)
     formed_prompt = italian_compliant_prompt
 
     conversation_ds = questions_ds.map(

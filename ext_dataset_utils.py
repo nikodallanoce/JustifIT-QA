@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 import datasets
@@ -51,3 +52,26 @@ def get_cleaned_question_dataset(questions_ds: datasets.Dataset, corpus_ds: data
     questions_df["relevant_doc_txt"] = retrieve_doc_txt_given_ids_lst(questions_df, corpus_df)
     questions_df.rename(columns={'relevant_document_sections': 'relevant_document_spans'}, inplace=True)
     return questions_df
+
+
+def extract_evaluation(text: str) -> tuple[str, float]:
+    """
+    Extracts the value associated with the "evaluation" key from a possibly malformed JSON-like string.
+    Returns the value as a string, or None if not found.
+    """
+    # Regex explanation:
+    # - (?i) makes it case-insensitive (matches "Evaluation", "evaluation", etc.)
+    # - looks for "evaluation" followed by ":" and optional spaces
+    # - captures the value between quotes (either single or double)
+    result_mapping = {"compliant": 1.0, "semi-compliant": 0.5, "error": 0.0, "non-compliant": 0.0,
+                      "conforme": 1.0, "parzialmente conforme": 0.5, "non conforme": 0.0}
+    pattern = r'(?i)"evaluation"\s*:\s*["\']([^"\']+)["\']'
+
+    match = re.search(pattern, text)
+    result = "ERROR"
+    if match:
+        result = match.group(1).strip().lower()
+    num_out = result_mapping.get(result, 0)
+    if result == "ERROR" or result not in result_mapping:
+        print("ERROR IN EXTRACTING EVALUATION!")
+    return (result, float(num_out))
