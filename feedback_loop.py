@@ -494,6 +494,18 @@ def parse_args():
         default="Qwen/Qwen3-Reranker-4B",
         help="HF repository of the reranker model."
     )
+    parser.add_argument(
+        "--feedback_ds_out_path",
+        type=str,
+        default="datasets/feedback_loop_result",
+        help="Output path for the feedback-loop dataset."
+    )
+    parser.add_argument(
+        "--labelled_answ_ds_out_path",
+        type=str,
+        default="datasets/feedback_loop_result_w_answer_eval",
+        help="Output path for the labelled answer evaluation dataset."
+    )
 
     return parser.parse_args()
 
@@ -605,7 +617,7 @@ if __name__ == '__main__':
         input_columns=["question", "relevant_text_sections", "answer"],
         new_fingerprint=f"{fgp}_feedback_loop"
     )
-    conversation_ds.save_to_disk("datasets/feedback_loop_result")
+    conversation_ds.save_to_disk(args.feedback_ds_out_path)
 
     conversation_ds = conversation_ds.map(
         evaluate_gen_labelled_answers_coherence,
@@ -620,4 +632,4 @@ if __name__ == '__main__':
         input_columns=["question", "relevant_doc_txt", "answer", "conversation"],
         new_fingerprint=f"{fgp}_evaluate_answers"
     )
-    conversation_ds.save_to_disk("datasets/feedback_loop_result_w_answer_eval")
+    conversation_ds.save_to_disk(args.labelled_answ_ds_out_path)

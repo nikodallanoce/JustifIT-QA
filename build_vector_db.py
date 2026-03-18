@@ -2,13 +2,7 @@ import itertools
 from typing import Iterable, List, Dict, Optional, Union, Any
 from dataclasses import dataclass
 import os
-
-from sentence_transformers import SentenceTransformer
-from tqdm.auto import tqdm
-import pandas as pd
 from datasets import Dataset
-
-
 from langchain_community.vectorstores import FAISS
 from langchain.embeddings.base import Embeddings
 
